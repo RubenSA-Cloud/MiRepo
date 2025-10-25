@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s       # Cada cuánto se recolectan métricas
+  evaluation_interval: 15s   # Cada cuánto se evalúan reglas o alertas
+
+scrape_configs:
+  # --- 1️⃣ Prometheus se monitoriza a sí mismo ---
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+
+  # --- 2️⃣ Ejemplo: metrics de Grafana (opcional) ---
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+

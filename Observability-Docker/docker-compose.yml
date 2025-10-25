@@ -1,0 +1,64 @@
+version: "3.8"                     # Especifica la versión del formato Compose.
+
+# ---------- Recursos compartidos ----------
+networks:
+  observability: {}                # Red interna para que los servicios se resuelvan por nombre.
+
+volumes:
+  grafana_data: {}                 # Datos persistentes de Grafana (dashboards, usuarios, etc.)
+  prometheus_data: {}              # TSDB de Prometheus (métricas).
+  loki_data: {}                    # Almacenamiento de chunks/índices de Loki.
+
+services:
+
+  # ---------- MÉTRICAS ----------
+  prometheus:
+    image: prom/prometheus:latest  # Imagen oficial de Prometheus.
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml     # Ruta del config.
+      - --storage.tsdb.retention.time=15d                # Retención de métricas (ejemplo 15 días).
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro # Monta tu config.
+      - prometheus_data:/prometheus                      # Volumen persistente para la TSDB.
+    ports:
+      - "9090:9090"                                      # Exponer UI/HTTP de Prometheus.
+    networks: [observability]
+
+  # ---------- LOGS (Servidor) ----------
+  loki:
+    image: grafana/loki:2.9.4        # Imagen oficial de Loki en modo “single process”.
+    command: ["-config.file=/etc/loki/config.yml"]  # Carga del config.
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/config.yml:ro  # Monta tu config.
+      - loki_data:/loki                                 # Persistencia de chunks/índices.
+    ports:
+      - "3100:3100"                                     # API HTTP de Loki.
+    networks: [observability]
+
+  # ---------- LOGS (Agente) ----------
+  promtail:
+    image: grafana/promtail:2.9.4
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      # MODO A (recomendado): auto-descubrir contenedores Docker -> NECESITA docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro     # <- IMPORTANTE si usas docker_sd_configs
+      #Esto lo que hace es mirar en la API de Docker para ver si hay nuevos contenedores y lo hace automáticamente
+      
+    networks: [observability]
+    depends_on: [loki]             # Arranca Loki antes, así Promtail ya tiene destino.
+
+  # ---------- DASHBOARDS ----------
+  grafana:
+    image: grafana/grafana:10.4.3   # Imagen oficial de Grafana.
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel  # Ejemplo de plugin.
+    volumes:
+      - grafana_data:/var/lib/grafana                        # Datos persistentes.
+      - ./grafana/provisioning:/etc/grafana/provisioning     # Auto-provisión de datasources/dashboards.
+    ports:
+      - "3000:3000"                                           # UI de Grafana.
+    depends_on: [prometheus, loki]                            # Asegura que datasources existan.
+    networks: [observability]
+

@@ -1,0 +1,34 @@
+server:
+  http_listen_port: 9080        # puerto interno (no hace falta exponer)
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml # guarda el "estado" para no reenviar logs ya leídos
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push  # destino donde envía los logs
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock   # lee info del daemon Docker
+        refresh_interval: 5s                # cada cuánto reescanea contenedores
+
+    relabel_configs:
+      # Extrae el nombre del contenedor y lo pone como label
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'container'
+        regex: '/(.*)'
+
+      # Extrae el nombre del servicio de Compose (si existe)
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+
+      # Extrae el nombre del proyecto de Compose
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: 'compose_project'
+
+      # Extrae el nombre de la imagen
+      - source_labels: ['__meta_docker_container_image']
+        target_label: 'image'
+
