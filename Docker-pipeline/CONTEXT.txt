@@ -1,0 +1,30 @@
+.
+├── CONTEXT.txt
+├── README.txt
+├── deploy
+│   ├── docker-compose.yml
+│   ├── grafana
+│   │   └── provisioning
+│   │       └── datasources
+│   └── prometheus
+│       └── prometheus.yml
+├── env
+│   └── pro
+│       ├── main.tf
+│       ├── outputs.tf
+│       ├── provider.tf
+│       ├── terraform.tfvars
+│       ├── variables.tf
+│       └── version.tf
+└── modules
+    ├── ec2
+    │   ├── data.tf
+    │   ├── main.tf
+    │   ├── outputs.tf
+    │   ├── user_data.sh
+    │   └── variables.tf
+    └── secrets
+        ├── main.tf
+        └── outputs.tf
+
+11 directories, 17 files
