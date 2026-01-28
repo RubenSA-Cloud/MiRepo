@@ -1,0 +1,18 @@
+.
+├── CONTEXT.txt
+├── README.txt
+├── docker-compose.yml
+├── grafana
+│   └── provisioning
+│       ├── dashboard
+│       │   └── dashboard.yml
+│       └── datasources
+│           └── datasources.yml
+├── loki
+│   └── loki-config.yml
+├── prometheus
+│   └── prometheus.yml
+└── promtail
+    └── promtail-config.yml
+
+8 directories, 8 files
