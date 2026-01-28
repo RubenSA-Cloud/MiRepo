@@ -89,7 +89,7 @@ When you deploy this project, the following AWS resources are provisioned:
 
 ```
 EC2 Instance (Amazon Linux 2023)
-├── Security Group (ingress: SSH 22, Prometheus 9090, Grafana 3000, node_exporter 9100)
+├── Security Group (ingress: SSH 22, optional, Prometheus 9090, Grafana 3000)
 ├── IAM Role (AmazonSSMManagedInstanceCore)
 ├── Instance Profile
 └── EBS Volume (gp3, 20 GB)
@@ -97,9 +97,6 @@ EC2 Instance (Amazon Linux 2023)
 AWS Secrets Manager
 └── grafana-credentials (username + password)
 
-SSM Parameter Store (optional)
-└── /monitoring/prometheus-config (versioned config)
-```
 
 **Deployed Services (via Docker Compose):**
 
