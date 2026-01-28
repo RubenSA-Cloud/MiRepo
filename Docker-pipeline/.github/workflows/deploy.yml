@@ -1,0 +1,99 @@
+name: Deploy Prometheus & Grafana
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: eu-west-1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.8.6
+
+      - name: Tofu Init
+        working-directory: env/pro
+        run: tofu init
+
+      - name: Tofu Apply
+        working-directory: env/pro
+        run: tofu apply -auto-approve
+
+      - name: Get outputs
+        id: out
+        working-directory: env/pro
+        run: |
+          echo "instance_id=$(tofu output -raw instance_id)" >> $GITHUB_OUTPUT
+          echo "grafana_url=$(tofu output -raw grafana_url)" >> $GITHUB_OUTPUT
+          echo "prometheus_url=$(tofu output -raw prometheus_url)" >> $GITHUB_OUTPUT
+          echo "grafana_secret_name=$(tofu output -raw grafana_secret_name)" >> $GITHUB_OUTPUT
+
+      - name: Read Grafana credentials from Secrets Manager
+        id: secret
+        run: |
+          SECRET_NAME="${{ steps.out.outputs.grafana_secret_name }}"
+          SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$SECRET_NAME" --query SecretString --output text)
+
+          echo "$SECRET_JSON" | jq -r '.username' > /tmp/graf_user
+          echo "$SECRET_JSON" | jq -r '.password' > /tmp/graf_pass
+
+          echo "graf_user=$(cat /tmp/graf_user)" >> $GITHUB_OUTPUT
+          echo "graf_pass=$(cat /tmp/graf_pass)" >> $GITHUB_OUTPUT
+
+      - name: Package deploy folder
+        id: pkg
+        run: |
+          tar -czf deploy.tgz deploy
+          echo "b64=$(base64 -w 0 deploy.tgz)" >> $GITHUB_OUTPUT
+
+      - name: Deploy on EC2 via SSM
+        run: |
+          INSTANCE_ID="${{ steps.out.outputs.instance_id }}"
+          B64="${{ steps.pkg.outputs.b64 }}"
+          GRAF_USER="${{ steps.secret.outputs.graf_user }}"
+          GRAF_PASS="${{ steps.secret.outputs.graf_pass }}"
+
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy Prometheus + Grafana via Docker Compose (with Secrets Manager credentials)" \
+            --parameters commands="[
+              \"set -euo pipefail\",
+              \"mkdir -p /opt/monitoring\",
+              \"cd /opt/monitoring\",
+              \"echo '$B64' | base64 -d > /tmp/deploy.tgz\",
+              \"tar -xzf /tmp/deploy.tgz -C /opt/monitoring\",
+              \"cd /opt/monitoring/deploy\",
+              \"cat > .env << 'EOF'\",
+              \"GF_SECURITY_ADMIN_USER=$GRAF_USER\",
+              \"GF_SECURITY_ADMIN_PASSWORD=$GRAF_PASS\",
+              \"EOF\",
+              \"docker compose --env-file .env up -d\",
+              \"docker ps\"
+            ]"
+
+      - name: Print URLs
+        run: |
+          echo "Grafana:    ${{ steps.out.outputs.grafana_url }}"
+          echo "Prometheus: ${{ steps.out.outputs.prometheus_url }}"
