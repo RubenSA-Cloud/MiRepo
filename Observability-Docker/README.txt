@@ -14,6 +14,12 @@ Un stack completo de observabilidad con **Prometheus** (métricas), **Loki** (lo
 ```bash
 docker-compose up -d
 
+## 🚀 Desconexión rápida
+
+```bash
+docker compose down
+
+
 
 Servicio	URL	Credenciales
 Grafana	http://localhost:3000	admin / admin
